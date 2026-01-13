@@ -81,7 +81,7 @@ cd runner-config
    - Repository access: Only `fransole/nixiso`
    - Permissions:
      - Actions: Read and write
-     - Contents: Read
+     - Contents: Read and write (needed for creating releases)
      - Metadata: Read (auto-included)
 4. Generate and copy the token
 

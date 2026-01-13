@@ -26,27 +26,66 @@
     enable = true;
     enableCompletion = true;
 
-    # Load Powerlevel10k theme
-    promptInit = ''
-      source ${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme
-    '';
-
-    # Source p10k config if available
-    interactiveShellInit = ''
-      # Source p10k config
-      [[ -f /etc/nixos/assets/p10k.zsh ]] && source /etc/nixos/assets/p10k.zsh
-    '';
-
-    # Useful aliases from your config
+    # Shell aliases
     shellAliases = {
+      # Modern replacements
       ls = "lsd";
       cat = "bat --paging=never";
       grep = "rg";
       rm = "gtrash put";
-      l = "lsd -la";
-      ll = "lsd -l";
-      lt = "lsd --tree";
+
+      # Git shortcuts
+      gita = "git add -A && git commit -m";
+
+      # NixOS management
+      update = "sudo nix flake update && sudo nixos-rebuild boot --flake --upgrade --option warn-dirty false";
+      rebuild = "sudo nixos-rebuild switch --flake --option warn-dirty false";
+      rebuildst = "sudo nixos-rebuild switch --flake --show-trace --option warn-dirty false";
+
+      # Navigation
+      cdn = "cd ~/Nixos";
+
+      # Utilities
+      clock = "clock-rs -c #7E9CD8";  # Using Kanagawa blue color
+      su = "sudo -s";
+      sudo = "sudo ";  # Allow aliases to work with sudo
     };
+
+    # Shell initialization
+    promptInit = ''
+      # Load Powerlevel10k theme
+      source ${pkgs.zsh-powerlevel10k}/share/zsh-powerlevel10k/powerlevel10k.zsh-theme
+    '';
+
+    interactiveShellInit = ''
+      # Disable autocorrect
+      unsetopt correct
+
+      # History settings
+      setopt hist_ignore_all_dups  # Remove older duplicate entries from history
+      setopt hist_reduce_blanks    # Remove superfluous blanks from history items
+      setopt inc_append_history    # Save history entries as soon as they are entered
+
+      # Auto complete options
+      setopt auto_list             # Automatically list choices on ambiguous completion
+      setopt auto_menu             # Automatically use menu completion
+
+      # Completion styling
+      zstyle ':completion:*' menu select                     # Select completions with arrow keys
+      zstyle ':completion:*' group-name ""                   # Group results by category
+      zstyle ':completion:::::' completer _expand _complete _ignored _approximate  # Enable approximate matches
+      zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'  # Case insensitive completion
+
+      # Fix common typo
+      alias cd..='cd ..'
+
+      # Source p10k config
+      [[ -f /etc/nixos/assets/p10k.zsh ]] && source /etc/nixos/assets/p10k.zsh
+    '';
+
+    # History configuration
+    histSize = 10000;
+    histFile = "$HOME/.zsh_history";
   };
 
   # Copy p10k config to system location

@@ -185,6 +185,22 @@ Add to your NixOS configuration:
 
 Follow instructions at: Settings → Actions → Runners → New self-hosted runner
 
+**Option 3: Containerized Deployment (Homelab/Server)**
+
+For Docker:
+```bash
+# See instruction.md for Dockerfile and docker-compose.yml
+docker-compose up -d
+```
+
+For LXC/Proxmox:
+- Download NixOS LXC template
+- Create container with 4+ cores, 8-16GB RAM, 100GB storage
+- Configure NixOS with flakes and binary caches
+- Install GitHub runner as systemd service
+
+See [instruction.md](instruction.md) for complete containerized setup guides.
+
 ## Customization
 
 ### Modify Packages

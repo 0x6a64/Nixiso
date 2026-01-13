@@ -127,10 +127,10 @@ sudo nixos-rebuild switch --flake .#nixiso-runner
 Check runner status:
 ```bash
 # Check systemd service
-sudo systemctl status github-nix-ci-nixiso-builder
+sudo systemctl status github-runner-nixiso-runner-fransole-nixiso-01
 
 # View logs
-sudo journalctl -u github-nix-ci-nixiso-builder -f
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
 
 # Check on GitHub
 # Go to: https://github.com/fransole/nixiso/settings/actions/runners
@@ -162,10 +162,10 @@ sudo journalctl -u github-nix-ci-nixiso-builder -f
 
 ### Systemd Services
 
-**github-nix-ci-nixiso-builder**
+**github-runner-nixiso-runner-fransole-nixiso-01**
 - Main runner service
 - Auto-restart on failure
-- 15-minute timeout for long builds
+- Ephemeral mode enabled
 
 **ensure-runner-secrets**
 - Ensures secrets directory exists
@@ -188,19 +188,19 @@ sudo journalctl -u github-nix-ci-nixiso-builder -f
 
 ```bash
 # Service status
-sudo systemctl status github-nix-ci-nixiso-builder
+sudo systemctl status github-runner-nixiso-runner-fransole-nixiso-01
 
 # View logs (live)
-sudo journalctl -u github-nix-ci-nixiso-builder -f
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
 
 # View logs (last 100 lines)
-sudo journalctl -u github-nix-ci-nixiso-builder -n 100
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 100
 ```
 
 ### Restart Runner
 
 ```bash
-sudo systemctl restart github-nix-ci-nixiso-builder
+sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
 ```
 
 ### Update Configuration
@@ -244,7 +244,7 @@ echo "ghp_NEW_TOKEN_HERE" | sudo tee /var/lib/secrets/github-runner-token
 sudo chmod 600 /var/lib/secrets/github-runner-token
 
 # Restart runner to use new token
-sudo systemctl restart github-nix-ci-nixiso-builder
+sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
 ```
 
 ## Monitoring
@@ -266,13 +266,13 @@ ip addr show
 
 ```bash
 # Follow current build
-sudo journalctl -u github-nix-ci-nixiso-builder -f
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
 
 # Search for errors
-sudo journalctl -u github-nix-ci-nixiso-builder | grep -i error
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 | grep -i error
 
 # Export logs
-sudo journalctl -u github-nix-ci-nixiso-builder --since "1 hour ago" > runner.log
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 --since "1 hour ago" > runner.log
 ```
 
 ### GitHub Actions
@@ -293,7 +293,7 @@ ls -la /var/lib/secrets/github-runner-token
 
 **Check service logs:**
 ```bash
-sudo journalctl -u github-nix-ci-nixiso-builder -n 50
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 50
 ```
 
 **Verify token is valid:**
@@ -317,14 +317,14 @@ free -h
 
 **View build logs:**
 ```bash
-sudo journalctl -u github-nix-ci-nixiso-builder -n 200
+sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 200
 ```
 
 ### Runner Shows Offline on GitHub
 
 **Restart service:**
 ```bash
-sudo systemctl restart github-nix-ci-nixiso-builder
+sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
 ```
 
 **Check network connectivity:**
@@ -337,26 +337,20 @@ curl -I https://api.github.com
 ```bash
 # Delete old runner on GitHub
 # Restart service (it will auto-register)
-sudo systemctl restart github-nix-ci-nixiso-builder
+sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
 ```
 
 ## Customization
-
-### Change Runner Labels
-
-Edit `configuration.nix`:
-```nix
-services.github-nix-ci.runners.nixiso-builder = {
-  labels = [ "self-hosted" "nixos" "lxc" "x86_64-linux" "my-label" ];
-};
-```
 
 ### Run Multiple Runners
 
 Edit `configuration.nix`:
 ```nix
-services.github-nix-ci.runners.nixiso-builder = {
-  num = 2;  # Run 2 concurrent runners
+services.github-nix-ci.personalRunners = {
+  "fransole/nixiso" = {
+    num = 2;  # Run 2 concurrent runners
+    tokenFile = /var/lib/secrets/github-runner-token;
+  };
 };
 ```
 
@@ -364,10 +358,10 @@ services.github-nix-ci.runners.nixiso-builder = {
 
 Edit `configuration.nix`:
 ```nix
-environment.systemPackages = with pkgs; [
-  # Add your packages here
+services.github-nix-ci.runnerSettings.extraPackages = with pkgs; [
   docker
   podman
+  # Add your packages here
 ];
 ```
 

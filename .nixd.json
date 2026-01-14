@@ -1,0 +1,13 @@
+{
+  "nixpkgs": {
+    "expr": "import (builtins.getFlake \"/home/john/Code/Nixiso\").inputs.nixpkgs { }"
+  },
+  "formatting": {
+    "command": ["alejandra"]
+  },
+  "options": {
+    "nixos": {
+      "expr": "(builtins.getFlake \"/home/john/Code/Nixiso\").nixosConfigurations.live-iso.options"
+    }
+  }
+}

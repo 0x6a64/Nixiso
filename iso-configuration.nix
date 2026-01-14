@@ -10,6 +10,7 @@
     ./modules/packages.nix
     ./modules/users.nix
     ./modules/xdg.nix
+    ./modules/firefox.nix
   ];
 
   # ISO image settings

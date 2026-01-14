@@ -58,6 +58,9 @@
     '';
 
     interactiveShellInit = ''
+      # Skip zsh-newuser-install wizard
+      zsh-newuser-install() { :; }
+
       # Disable autocorrect
       unsetopt correct
 
@@ -87,4 +90,9 @@
 
   # Copy p10k config to system location
   environment.etc."nixos/assets/p10k.zsh".source = ../assets/p10k.zsh;
+
+  # Create .zshrc to prevent zsh-newuser-install wizard
+  environment.etc."skel/.zshrc".text = ''
+    # Managed by NixOS - prevents zsh-newuser-install wizard
+  '';
 }

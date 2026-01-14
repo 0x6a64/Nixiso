@@ -6,17 +6,17 @@
   # Enable GNOME browser connector for extension installation
   services.gnome.gnome-browser-connector.enable = true;
 
-  # Enable GNOME Keyring for secret storage (VSCode, etc.)
-  services.gnome.gnome-keyring.enable = true;
-
   # Minimal GNOME extensions for live environment
   environment.systemPackages = with pkgs.gnomeExtensions; [
     appindicator      # System tray support
     caffeine          # Prevent screen lock
     user-themes       # Custom theme support
-  ] ++ [
-    pkgs.seahorse     # Keyring management UI
   ];
+
+  # Configure VSCode to use basic password store (no keyring prompts)
+  environment.sessionVariables = {
+    VSCODE_KEYRING_PASS = "nixos-live";
+  };
 
   # Exclude unnecessary GNOME applications to reduce ISO size
   environment.gnome.excludePackages = with pkgs; [

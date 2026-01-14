@@ -57,7 +57,6 @@
     noto-fonts-color-emoji
 
     # Utilities
-    firefox
     discord
   ])
   ++

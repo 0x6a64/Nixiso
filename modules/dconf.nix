@@ -16,7 +16,8 @@
 
     script = ''
       # Wait for user session to be fully ready
-      sleep 5
+      # Increased to 10s for slower VMs/hardware
+      sleep 10
 
       # Apply GNOME settings via dconf
       ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'prefer-dark'"

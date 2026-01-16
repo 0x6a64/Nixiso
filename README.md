@@ -5,8 +5,8 @@ A NixOS live boot ISO with GNOME desktop, development tools, and CLI utilities. 
 ## Features
 
 ### Desktop Environment
-- **GNOME** with dark mode (Stylix + Kanagawa theme)
-- Beautiful Kanagawa color scheme throughout the system
+- **GNOME** with dark mode (Adwaita dark theme via dconf)
+- Carefully configured dconf settings for a polished experience
 - Modern, polished interface with carefully tuned dconf settings
 - Auto-login for instant access
 
@@ -111,7 +111,7 @@ nixiso/
 ├── iso-configuration.nix        # Core ISO settings
 ├── modules/
 │   ├── gnome.nix               # GNOME desktop
-│   ├── stylix.nix              # Dark mode theming
+│   ├── theming.nix             # GTK theming and fonts
 │   ├── dconf.nix               # GNOME settings
 │   ├── packages.nix            # Package list
 │   └── users.nix               # User configuration
@@ -125,7 +125,7 @@ nixiso/
 ### Key Technologies
 
 - **NixOS**: Reproducible system configuration
-- **Stylix**: Unified theming system
+- **dconf**: GNOME settings and theming
 - **Flakes**: Hermetic, reproducible builds
 - **GitHub Actions**: Automated weekly builds
 - **Self-hosted Runner**: Build on your own hardware
@@ -218,13 +218,14 @@ environment.systemPackages = (with pkgs; [
 
 ### Change Theme
 
-Edit `modules/stylix.nix`:
+Edit `modules/theming.nix` for GTK/cursor themes, or `modules/dconf.nix` for GNOME settings:
 
 ```nix
-base16Scheme = "${pkgs.base16-schemes}/share/themes/your-theme.yaml";
+# In dconf.nix - change color scheme
+"org/gnome/desktop/interface" = {
+  color-scheme = "prefer-dark";  # or "prefer-light", "default"
+};
 ```
-
-Available themes in: `/nix/store/*/share/themes/`
 
 ### Adjust GNOME Settings
 
@@ -337,7 +338,7 @@ A: Download the latest release or rebuild locally with `nix build`.
 
 - [NixOS Manual](https://nixos.org/manual/nixos/stable/)
 - [Nix Flakes](https://nixos.wiki/wiki/Flakes)
-- [Stylix Documentation](https://github.com/danth/stylix)
+- [GNOME dconf](https://wiki.gnome.org/Projects/dconf)
 - [GitHub Actions Runners](https://docs.github.com/en/actions/hosting-your-own-runners)
 - [Self-Hosted Runner Setup](instruction.md)
 
@@ -348,8 +349,6 @@ MIT License - See LICENSE file for details
 ## Credits
 
 - **NixOS**: The Nix community
-- **Stylix**: Theme management
-- **Kanagawa**: Color scheme by rebelot
 - **Powerlevel10k**: ZSH theme by romkatv
 - **Modern CLI tools**: bat, lsd, ripgrep, and others
 

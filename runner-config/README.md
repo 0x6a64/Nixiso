@@ -1,479 +1,178 @@
-# NixOS GitHub Actions Runner Configuration
+# Nixiso GitHub Actions Runner Configuration
 
-Complete, production-ready NixOS configuration for running GitHub Actions runners in LXC containers using github-nix-ci.
+Self-hosted GitHub Actions runner for building Nixiso ISOs. Deploy this inside a NixOS LXC container on Proxmox. Lean, auto-updating, and self-maintaining.
 
 ## Overview
 
-This configuration provides:
+This flake configures a NixOS system (already running in an LXC container) with:
 - GitHub Actions runner via github-nix-ci
-- Optimized Nix settings for ISO builds
-- Automatic garbage collection and store optimization
-- Monitoring and maintenance systemd services
-- SSH access for management
-- Binary cache configuration for fast builds
+- Automatic weekly updates and garbage collection
+- Optimized for ISO builds with minimal resources
+- Binary caches pre-configured
 
 ## Prerequisites
 
-- NixOS LXC container (Proxmox, Incus, or LXD)
+- NixOS LXC container already created and running on Proxmox
 - GitHub Personal Access Token (fine-grained)
-- SSH access to the container
 
-## Quick Start
+## Setup
 
-### 1. Deploy to LXC Container
+### 1. Create NixOS LXC Container on Proxmox
 
-**On Proxmox:**
+**Download NixOS template (on Proxmox host):**
 ```bash
-# Download NixOS LXC template (on Proxmox host)
 cd /var/lib/vz/template/cache
-wget https://hydra.nixos.org/job/nixos/release-24.11/nixos.lxdContainerImage.x86_64-linux/latest/download-by-type/file/tarball
-mv tarball nixos-24.11-lxc.tar.xz
+wget https://hydra.nixos.org/job/nixos/release-24.11/nixos.lxdContainerImage.x86_64-linux/latest/download-by-type/file/tarball -O nixos-24.11-lxc.tar.xz
+```
 
-# Create container via Proxmox UI:
-# - CT ID: 100 (or your choice)
-# - Template: nixos-24.11-lxc.tar.xz
-# - Hostname: nixiso-runner
-# - Unprivileged: Yes
-# - CPU: 4-8 cores
-# - Memory: 8-16GB
-# - Disk: 100GB
-# - Network: Bridge to your network
+**Create container:**
+```bash
+pct create 100 local:vztmpl/nixos-24.11-lxc.tar.xz \
+  --hostname nixiso-runner \
+  --memory 6144 \
+  --swap 2048 \
+  --cores 4 \
+  --rootfs local-lvm:60 \
+  --net0 name=eth0,bridge=vmbr0,ip=dhcp \
+  --unprivileged 1 \
+  --features nesting=1
 
-# Start and enter container
 pct start 100
 pct enter 100
 ```
 
-**On Incus/LXD:**
+### 2. Deploy Runner Configuration
+
+**Inside the container, generate GitHub token:**
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2. Create token:
+   - Repository: `nixiso`
+   - Permissions: Actions (R/W), Contents (Read), Metadata (Read)
+   - Expiration: 90 days
+
+**Store token:**
 ```bash
-incus image copy images:nixos/24.11 local: --alias nixos
-incus launch nixos nixiso-runner \
-  -c limits.cpu=4 \
-  -c limits.memory=16GB \
-  -c boot.autostart=true
-incus exec nixiso-runner -- bash
+mkdir -p /var/lib/secrets
+echo "YOUR_GITHUB_TOKEN_HERE" > /var/lib/secrets/github-runner-token
+chmod 600 /var/lib/secrets/github-runner-token
 ```
 
-### 2. Initial Container Setup
-
-Inside the container:
-
+**Deploy this flake:**
 ```bash
-# Clone this configuration
 cd /etc/nixos
-git init
-git remote add origin https://github.com/fransole/nixiso.git
-git fetch origin
-git checkout origin/main -- runner-config
-cd runner-config
 
-# Or manually copy files
-# Copy flake.nix, configuration.nix, and this README to /etc/nixos/
+# Copy flake.nix to /etc/nixos/flake.nix
+# Edit flake.nix and update the owner and repo fields
+
+nixos-rebuild switch --flake .#nixiso-runner
 ```
 
-### 3. Generate GitHub Token
+### 3. Verify
 
-1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
-2. Click "Generate new token"
-3. Configure:
-   - Name: `nixiso-runner`
-   - Expiration: 90 days (recommended)
-   - Repository access: Only `fransole/nixiso`
-   - Permissions:
-     - Actions: Read and write
-     - Contents: Read and write (needed for creating releases)
-     - Metadata: Read (auto-included)
-4. Generate and copy the token
+Check GitHub: Settings → Actions → Runners
 
-### 4. Configure Secrets
+Runner should appear as "Idle" with green status.
 
+## What's Configured
+
+- **Auto-updating**: Weekly system updates (nixos-unstable)
+- **Auto-cleanup**: Weekly garbage collection (>7 days)
+- **Storage optimization**: Automatic Nix store deduplication
+- **Binary caches**: Pre-configured for fast builds
+- **SSH**: Enabled for remote management
+- **Resources**: Minimal - 4 cores, 6GB RAM, 60GB disk
+
+## Maintenance
+
+### Automatic (no action needed)
+- Weekly garbage collection
+- Weekly system updates
+- Continuous storage optimization
+- Automatic runner updates
+
+### Manual Commands
+
+**Check runner:**
 ```bash
-# Create secrets directory
-sudo mkdir -p /var/lib/secrets
-sudo chmod 700 /var/lib/secrets
-
-# Store GitHub token
-echo "ghp_YOUR_TOKEN_HERE" | sudo tee /var/lib/secrets/github-runner-token
-sudo chmod 600 /var/lib/secrets/github-runner-token
-sudo chown root:root /var/lib/secrets/github-runner-token
+systemctl status github-nix-ci-nixiso-builder
+journalctl -u github-nix-ci-nixiso-builder -f
 ```
 
-### 5. Configure SSH Access (Optional)
-
-Edit `configuration.nix` and add your SSH public key:
-
-```nix
-users.users.runner = {
-  # ... existing config ...
-  openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3Nza... your-key-here"
-  ];
-};
-```
-
-### 6. Deploy Configuration
-
+**Update flake (monthly):**
 ```bash
-# Initial build and switch
-sudo nixos-rebuild switch --flake .#nixiso-runner
-
-# Or if using the flake from /etc/nixos/runner-config:
-cd /etc/nixos/runner-config
-sudo nixos-rebuild switch --flake .#nixiso-runner
-```
-
-### 7. Verify Runner
-
-Check runner status:
-```bash
-# Check systemd service
-sudo systemctl status github-runner-nixiso-runner-fransole-nixiso-01
-
-# View logs
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
-
-# Check on GitHub
-# Go to: https://github.com/fransole/nixiso/settings/actions/runners
-# Your runner should appear as "Idle" with a green dot
-```
-
-## Configuration Details
-
-### Resources
-
-**Minimum:**
-- CPU: 4 cores
-- Memory: 8GB
-- Storage: 100GB
-
-**Recommended:**
-- CPU: 8 cores
-- Memory: 16GB
-- Storage: 200GB
-
-### Nix Settings
-
-- **Flakes**: Enabled
-- **Binary caches**: cache.nixos.org, nix-community, numtide
-- **Garbage collection**: Weekly, delete >7 days old
-- **Store optimization**: Weekly, automatic deduplication
-- **Max jobs**: Auto (uses all cores)
-- **Sandbox**: Enabled for security
-
-### Systemd Services
-
-**github-runner-nixiso-runner-fransole-nixiso-01**
-- Main runner service
-- Auto-restart on failure
-- Ephemeral mode enabled
-
-**ensure-runner-secrets**
-- Ensures secrets directory exists
-- Warns if token is missing
-- Runs before runner starts
-
-**disk-usage-monitor**
-- Checks disk usage daily
-- Warns at >80% usage
-- Suggests cleanup commands
-
-**cleanup-runner-logs**
-- Removes logs >7 days old
-- Runs weekly
-- Prevents log buildup
-
-## Management
-
-### Check Runner Status
-
-```bash
-# Service status
-sudo systemctl status github-runner-nixiso-runner-fransole-nixiso-01
-
-# View logs (live)
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
-
-# View logs (last 100 lines)
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 100
-```
-
-### Restart Runner
-
-```bash
-sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
-```
-
-### Update Configuration
-
-```bash
-cd /etc/nixos/runner-config
-# Edit configuration.nix as needed
-sudo nixos-rebuild switch --flake .#nixiso-runner
-```
-
-### Update Flake Inputs
-
-```bash
-cd /etc/nixos/runner-config
+cd /etc/nixos
 nix flake update
-sudo nixos-rebuild switch --flake .#nixiso-runner
+nixos-rebuild switch --flake .#nixiso-runner
 ```
 
-### Disk Space Management
-
+**Rotate token (every 90 days):**
 ```bash
-# Check disk usage
+echo "NEW_TOKEN" > /var/lib/secrets/github-runner-token
+systemctl restart github-nix-ci-nixiso-builder
+```
+
+**Disk usage:**
+```bash
 df -h
-
-# Clean up old generations
-sudo nix-collect-garbage -d
-
-# Optimize store (deduplicate)
-sudo nix-store --optimise
-
-# Check what's using space
-ncdu /nix/store
+du -sh /nix/store
+nix-collect-garbage -d
+nix-store --optimise
 ```
-
-### Rotate GitHub Token
-
-```bash
-# Generate new token on GitHub
-# Update token file
-echo "ghp_NEW_TOKEN_HERE" | sudo tee /var/lib/secrets/github-runner-token
-sudo chmod 600 /var/lib/secrets/github-runner-token
-
-# Restart runner to use new token
-sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
-```
-
-## Monitoring
-
-### System Resources
-
-```bash
-# CPU and memory
-btop
-
-# Disk usage
-ncdu /
-
-# Network
-ip addr show
-```
-
-### Build Logs
-
-```bash
-# Follow current build
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -f
-
-# Search for errors
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 | grep -i error
-
-# Export logs
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 --since "1 hour ago" > runner.log
-```
-
-### GitHub Actions
-
-Check builds on GitHub:
-- Repository → Actions tab
-- View workflow runs
-- Download ISO artifacts
 
 ## Troubleshooting
 
-### Runner Not Starting
-
-**Check token file exists:**
+**Runner not showing:**
 ```bash
-ls -la /var/lib/secrets/github-runner-token
+systemctl status github-nix-ci-nixiso-builder
+journalctl -u github-nix-ci-nixiso-builder -n 50
 ```
 
-**Check service logs:**
+**Out of space:**
 ```bash
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 50
+nix-collect-garbage -d
+nix-store --optimise
+# Resize from Proxmox: pct resize 100 rootfs +20G
 ```
 
-**Verify token is valid:**
-- Go to GitHub → Settings → Developer settings → Personal access tokens
-- Check expiration date
-- Verify repository access
-
-### Build Failures
-
-**Check disk space:**
+**Token expired:**
 ```bash
-df -h
-sudo nix-collect-garbage -d
-```
-
-**Check memory:**
-```bash
-free -h
-# If low, increase container memory or add swap
-```
-
-**View build logs:**
-```bash
-sudo journalctl -u github-runner-nixiso-runner-fransole-nixiso-01 -n 200
-```
-
-### Runner Shows Offline on GitHub
-
-**Restart service:**
-```bash
-sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
-```
-
-**Check network connectivity:**
-```bash
-ping github.com
-curl -I https://api.github.com
-```
-
-**Re-register runner:**
-```bash
-# Delete old runner on GitHub
-# Restart service (it will auto-register)
-sudo systemctl restart github-runner-nixiso-runner-fransole-nixiso-01
+echo "NEW_TOKEN" > /var/lib/secrets/github-runner-token
+chmod 600 /var/lib/secrets/github-runner-token
+systemctl restart github-nix-ci-nixiso-builder
 ```
 
 ## Customization
 
-### Run Multiple Runners
-
-Edit `configuration.nix`:
+**Multiple runners:**
 ```nix
-services.github-nix-ci.personalRunners = {
-  "fransole/nixiso" = {
-    num = 2;  # Run 2 concurrent runners
-    tokenFile = /var/lib/secrets/github-runner-token;
-  };
+runners.nixiso-builder = {
+  num = 2;  # Run 2 concurrent
+  # ...
 };
 ```
 
-### Add Extra Packages
-
-Edit `configuration.nix`:
+**Different repo:**
 ```nix
-services.github-nix-ci.runnerSettings.extraPackages = with pkgs; [
-  docker
-  podman
-  # Add your packages here
-];
+owner = "your-username";
+repo = "your-repo";
 ```
 
-### Adjust Garbage Collection
-
-Edit `configuration.nix`:
+**More aggressive cleanup:**
 ```nix
 nix.gc = {
-  automatic = true;
-  dates = "daily";  # Run daily instead of weekly
-  options = "--delete-older-than 3d";  # Keep 3 days instead of 7
+  dates = "daily";
+  options = "--delete-older-than 3d";
 };
 ```
 
-## Security
+## Resources
 
-### Recommendations
+- **CPU**: 2-4 cores
+- **Memory**: 6GB (8GB recommended)
+- **Storage**: 60GB
+- **Swap**: 2GB
 
-1. **Use fine-grained tokens** with minimal permissions
-2. **Rotate tokens regularly** (every 90 days recommended)
-3. **Use SSH key authentication** (disable password auth)
-4. **Keep NixOS updated** regularly
-5. **Monitor runner logs** for suspicious activity
-6. **Limit network access** if possible (firewall rules)
+## Links
 
-### Token Security
-
-- Token stored in `/var/lib/secrets/` with 600 permissions
-- Only root can read
-- Not exposed in logs or process list
-- Not committed to git
-
-## Backup
-
-### Important Files to Backup
-
-- `/var/lib/secrets/github-runner-token` - GitHub token
-- `/etc/nixos/runner-config/` - Configuration files
-- `/root/.ssh/` - SSH keys (if used)
-
-### Container Snapshots
-
-**Proxmox:**
-```bash
-# Create snapshot
-pct snapshot 100 pre-update
-
-# Rollback if needed
-pct rollback 100 pre-update
-```
-
-**Incus:**
-```bash
-# Create snapshot
-incus snapshot nixiso-runner pre-update
-
-# Restore if needed
-incus restore nixiso-runner pre-update
-```
-
-## Updates
-
-### Update NixOS
-
-```bash
-cd /etc/nixos/runner-config
-nix flake update
-sudo nixos-rebuild switch --flake .#nixiso-runner
-```
-
-### Update github-nix-ci
-
-```bash
-cd /etc/nixos/runner-config
-nix flake lock --update-input github-nix-ci
-sudo nixos-rebuild switch --flake .#nixiso-runner
-```
-
-## Performance Tuning
-
-### For Heavy Workloads
-
-Edit `configuration.nix`:
-
-```nix
-nix.settings = {
-  max-jobs = 8;  # Limit concurrent builds
-  cores = 2;     # Cores per job (8 jobs × 2 cores = 16 cores used)
-
-  # Increase build timeout
-  timeout = 86400;  # 24 hours
-};
-```
-
-### For Resource-Constrained Systems
-
-```nix
-nix.settings = {
-  max-jobs = 2;  # Fewer concurrent builds
-  cores = 4;     # More cores per job
-};
-
-# Reduce garbage collection frequency
-nix.gc.dates = "monthly";
-```
-
-## Support
-
-- **Issues**: https://github.com/fransole/nixiso/issues
-- **Discussions**: https://github.com/fransole/nixiso/discussions
-- **github-nix-ci**: https://github.com/juspay/github-nix-ci
-
-## License
-
-This configuration is part of the Nixiso project. See main repository for license details.
+- [github-nix-ci](https://github.com/juspay/github-nix-ci)
+- [Proxmox LXC](https://pve.proxmox.com/wiki/Linux_Container)

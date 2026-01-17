@@ -1,18 +1,18 @@
 # GitHub Actions Runner for Nixiso - Proxmox LXC Setup
 
-This guide sets up a self-hosted GitHub Actions runner in a Proxmox LXC container running NixOS with github-nix-ci. Just drop in a single flake.nix and you're ready to go.
+Set up a self-hosted GitHub Actions runner in a Proxmox LXC container running NixOS with github-nix-ci. Drop in a single flake and you're done.
 
 ## Quick Start
 
-1. Create Proxmox LXC container with NixOS
-2. Drop in the flake.nix provided below
-3. Add your GitHub token
-4. Run `nixos-rebuild switch --flake .`
-5. Done - runner stays updated and lean automatically
+1. Create NixOS LXC container on Proxmox
+2. Enter container and add GitHub token
+3. Copy `runner-config/flake.nix` to `/etc/nixos/flake.nix`
+4. Run `nixos-rebuild switch --flake .#nixiso-runner`
+5. Done - runner auto-updates and stays lean
 
 ---
 
-## Step 1: Create LXC Container in Proxmox
+## Step 1: Create NixOS LXC Container
 
 ### Download NixOS Template
 
@@ -65,11 +65,11 @@ pct enter 100
 
 ---
 
-## Step 2: Configure the Runner
+## Step 2: Deploy Runner Configuration
 
 ### Generate GitHub Token
 
-1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
 2. Generate new token:
    - **Name**: `nixiso-runner`
    - **Expiration**: 90 days
@@ -87,122 +87,51 @@ echo "YOUR_GITHUB_TOKEN_HERE" > /var/lib/secrets/github-runner-token
 chmod 600 /var/lib/secrets/github-runner-token
 ```
 
-### Create Flake Configuration
+### Deploy Flake
 
-Create `/etc/nixos/flake.nix` with the following content. **Update the `owner` and `repo` fields** to match your GitHub username and repository:
+Copy the `flake.nix` from `runner-config/` to `/etc/nixos/flake.nix` in the container.
 
-```nix
-{
-  description = "Nixiso GitHub Actions Runner - Lean and Auto-Updating";
+The flake is self-contained and includes:
+- GitHub runner configuration (github-nix-ci)
+- Weekly auto-updates (nixos-unstable)
+- Weekly garbage collection (7 day retention)
+- Auto storage optimization
+- Binary caches for fast builds
+- SSH access
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    github-nix-ci.url = "github:juspay/github-nix-ci";
-  };
-
-  outputs = { self, nixpkgs, github-nix-ci }: {
-    nixosConfigurations.nixiso-runner = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        # Import LXC container base
-        "${nixpkgs}/nixos/modules/virtualisation/lxc-container.nix"
-
-        # Import github-nix-ci module
-        github-nix-ci.nixosModules.default
-
-        # Main configuration
-        ({ config, pkgs, ... }: {
-
-          # === Nix Configuration ===
-          nix.settings = {
-            experimental-features = [ "nix-command" "flakes" ];
-
-            # Binary caches for faster builds
-            substituters = [
-              "https://cache.nixos.org"
-              "https://nix-community.cachix.org"
-            ];
-            trusted-public-keys = [
-              "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-              "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-            ];
-
-            # Keep system lean
-            auto-optimise-store = true;
-          };
-
-          # Automatic garbage collection - removes old builds weekly
-          nix.gc = {
-            automatic = true;
-            dates = "weekly";
-            options = "--delete-older-than 7d";
-          };
-
-          # === Auto-Update System ===
-          system.autoUpgrade = {
-            enable = true;
-            dates = "weekly";
-            flake = "/etc/nixos";
-            allowReboot = false;
-          };
-
-          # === GitHub Runner Configuration ===
-          services.github-nix-ci = {
-            age.secretsDir = "/var/lib/secrets";
-
-            runners.nixiso-builder = {
-              owner = "fransole";  # ← CHANGE THIS to your GitHub username
-              repo = "nixiso";      # ← CHANGE THIS to your repository name
-              num = 1;
-              tokenFile = "/var/lib/secrets/github-runner-token";
-              labels = [ "self-hosted" "nixos" "lxc" "x86_64-linux" ];
-            };
-          };
-
-          # === System Configuration ===
-          networking = {
-            hostName = "nixiso-runner";
-            useNetworkd = true;
-          };
-
-          # SSH for remote management
-          services.openssh = {
-            enable = true;
-            settings.PermitRootLogin = "yes";
-          };
-
-          # Minimal essential packages
-          environment.systemPackages = with pkgs; [
-            git
-            curl
-            vim
-            htop
-          ];
-
-          system.stateVersion = "24.11";
-        })
-      ];
-    };
-  };
-}
-```
-
-### Deploy
+**Edit and deploy:**
 
 ```bash
 cd /etc/nixos
+
+# Edit flake.nix and update these fields:
+# - owner: "fransole"  # Your GitHub username
+# - repo: "nixiso"      # Your repository
+
 nixos-rebuild switch --flake .#nixiso-runner
 ```
 
-The runner will start automatically.
+The runner starts automatically.
 
 ---
 
 ## Step 3: Verify
 
-Go to your GitHub repository:
-- Settings → Actions → Runners
-- You should see `nixiso-runner-nixiso-builder-1` listed as "Idle" with a green dot
+Go to GitHub repository: Settings → Actions → Runners
+
+You should see the runner as "Idle" with a green status.
+
+---
+
+## What's Configured
+
+- **NixOS**: nixos-unstable (modern, rolling)
+- **Auto-updating**: Weekly system updates
+- **Auto-cleanup**: Weekly garbage collection (>7 days old)
+- **Storage**: Automatic Nix store deduplication
+- **Binary caches**: Pre-configured for fast builds
+- **SSH**: Enabled for remote management
+- **Resources**: Minimal - 4 cores, 6GB RAM, 60GB disk
 
 ---
 
@@ -211,10 +140,12 @@ Go to your GitHub repository:
 ### Automatic (No Action Needed)
 
 The system maintains itself:
-- **Weekly**: Garbage collection, system updates
-- **Continuous**: Storage optimization, runner updates
+- Weekly system updates (nixos-unstable)
+- Weekly garbage collection
+- Continuous storage optimization
+- Automatic runner updates
 
-### Manual Tasks
+### Manual Commands
 
 **Check runner status:**
 ```bash
@@ -226,14 +157,14 @@ systemctl status github-nix-ci-nixiso-builder
 journalctl -u github-nix-ci-nixiso-builder -f
 ```
 
-**Update flake (monthly):**
+**Update flake inputs (monthly):**
 ```bash
 cd /etc/nixos
 nix flake update
 nixos-rebuild switch --flake .#nixiso-runner
 ```
 
-**Rotate token (every 90 days):**
+**Rotate GitHub token (every 90 days):**
 ```bash
 echo "NEW_TOKEN" > /var/lib/secrets/github-runner-token
 systemctl restart github-nix-ci-nixiso-builder
@@ -255,20 +186,20 @@ nix-store --optimise
 
 ## Troubleshooting
 
-### Runner not appearing in GitHub
+### Runner Not Appearing in GitHub
 
 ```bash
 systemctl status github-nix-ci-nixiso-builder
 journalctl -u github-nix-ci-nixiso-builder -n 50
 ```
 
-### Build failures
+### Build Failures
 
 ```bash
 journalctl -u github-nix-ci-nixiso-builder -f
 ```
 
-### Out of disk space
+### Out of Disk Space
 
 ```bash
 # Clean up
@@ -279,7 +210,7 @@ nix-store --optimise
 pct resize 100 rootfs +20G
 ```
 
-### Token expired
+### Token Expired
 
 ```bash
 echo "NEW_TOKEN" > /var/lib/secrets/github-runner-token
@@ -301,13 +232,49 @@ Expected build time: 15-30 minutes
 
 ---
 
-## Backup
+## Customization
 
+### Multiple Runners
+
+Edit `flake.nix`:
+```nix
+runners.nixiso-builder = {
+  num = 2;  # Run 2 concurrent runners
+  # ...
+};
+```
+
+### Different Repository
+
+Edit `flake.nix`:
+```nix
+owner = "your-username";
+repo = "your-repo";
+```
+
+### More Aggressive Cleanup
+
+Edit `flake.nix`:
+```nix
+nix.gc = {
+  automatic = true;
+  dates = "daily";  # Instead of weekly
+  options = "--delete-older-than 3d";  # Instead of 7d
+};
+```
+
+---
+
+## Container Backup
+
+**Backup:**
 ```bash
-# On Proxmox host - backup container
+# On Proxmox host
 vzdump 100 --storage local --mode stop
+```
 
-# Restore if needed
+**Restore:**
+```bash
 pct restore 100 /var/lib/vz/dump/vzdump-lxc-100-*.tar.zst
 ```
 
@@ -320,7 +287,7 @@ pct restore 100 /var/lib/vz/dump/vzdump-lxc-100-*.tar.zst
 - **Storage**: 60GB
 - **Swap**: 2GB
 
-Minimal and can run alongside other services.
+Minimal footprint - can run alongside other services.
 
 ---
 
@@ -330,7 +297,14 @@ Minimal and can run alongside other services.
 - Fine-grained token with minimal permissions
 - Rotate every 90 days
 - Unprivileged container for isolation
-- No inbound connections required
+- No inbound network connections required
+
+---
+
+## Files
+
+- `runner-config/flake.nix` - Complete runner configuration (deploy to `/etc/nixos/`)
+- `runner-config/README.md` - Detailed documentation
 
 ---
 

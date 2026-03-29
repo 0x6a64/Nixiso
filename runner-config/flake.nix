@@ -54,7 +54,7 @@
             age.secretsDir = "/var/lib/secrets";
 
             runners.nixiso-builder = {
-              owner = "fransole";  # ← CHANGE THIS to your GitHub username
+              owner = "0x6a64";  # ← CHANGE THIS to your GitHub username
               repo = "nixiso";      # ← CHANGE THIS to your repository name
               num = 1;
               tokenFile = "/var/lib/secrets/github-runner-token";

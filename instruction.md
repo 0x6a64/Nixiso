@@ -105,7 +105,7 @@ The flake is self-contained and includes:
 cd /etc/nixos
 
 # Edit flake.nix and update these fields:
-# - owner: "fransole"  # Your GitHub username
+# - owner: "0x6a64"  # Your GitHub username
 # - repo: "nixiso"      # Your repository
 
 nixos-rebuild switch --flake .#nixiso-runner

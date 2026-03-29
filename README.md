@@ -37,7 +37,7 @@ A NixOS live boot ISO with GNOME desktop, development tools, and CLI utilities. 
 
 ### Download
 
-Download the latest ISO from the [Releases](https://github.com/fransole/nixiso/releases) page.
+Download the latest ISO from the [Releases](https://github.com/0x6a64/nixiso/releases) page.
 
 ### Write to USB
 
@@ -79,7 +79,7 @@ Replace `/dev/sdX` with your USB device (check with `lsblk` or `fdisk -l`).
 
 ```bash
 # Clone the repository
-git clone https://github.com/fransole/nixiso.git
+git clone https://github.com/0x6a64/nixiso.git
 cd nixiso
 
 # Build the ISO
@@ -171,7 +171,7 @@ Add to your NixOS configuration:
   services.github-nix-ci = {
     age.secretsDir = "/var/lib/secrets";
     runners.nixiso-builder = {
-      owner = "fransole";
+      owner = "0x6a64";
       repo = "nixiso";
       num = 1;
       tokenFile = "/var/lib/secrets/github-runner-token";
@@ -354,6 +354,6 @@ MIT License - See LICENSE file for details
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/fransole/nixiso/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/fransole/nixiso/discussions)
+- **Issues**: [GitHub Issues](https://github.com/0x6a64/nixiso/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/0x6a64/nixiso/discussions)
 - **NixOS**: [NixOS Discourse](https://discourse.nixos.org)
